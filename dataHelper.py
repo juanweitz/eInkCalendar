@@ -27,9 +27,12 @@ def get_events(max_number: int) -> List[Event]:
     current_timezone = tz.tzlocal()
 
     try:
+        logger.info("query webdav")
         event_list = events(WEBDAV_CALENDAR_URL, fix_apple=WEBDAV_IS_APPLE)
         event_list.sort(key=sort_by_date)
+        logger.info(event_list)
 
+        logger.info("filter events")
         start_count = 0
         for event in event_list:
             event.start.replace(tzinfo=utc_timezone)
@@ -37,11 +40,8 @@ def get_events(max_number: int) -> List[Event]:
 
             # remove events from previous day (problem based on time-zones)
             day_number = time.localtime().tm_mday
-            event_date = event.start.date()
-            if (day_number == 1 and event_date.month < time.localtime().tm_mon):
-                start_count += 1
-                max_number += 1
-            elif (event_date.day < day_number):
+            print(datetime.now(current_timezone))
+            if (event.end < datetime.now(current_timezone)):
                 start_count += 1
                 max_number += 1
 
@@ -55,41 +55,4 @@ def get_events(max_number: int) -> List[Event]:
 
 
 def get_birthdays() -> List[str]:
-    logger.info("Retrieving contact (birthday) infos")
-    try:
-        auth = HTTPBasicAuth(CALDAV_CONTACT_USER, CALDAV_CONTACT_PWD)
-        baseurl = urlparse(CALDAV_CONTACT_URL).scheme + \
-            '://' + urlparse(CALDAV_CONTACT_URL).netloc
-
-        r = requests.request('PROPFIND', CALDAV_CONTACT_URL, auth=auth, headers={
-            'content-type': 'text/xml', 'Depth': '1'})
-        if r.status_code != 207:
-            raise RuntimeError('error in response from %s: %r' %
-                               (CALDAV_CONTACT_URL, r))
-
-        vcardUrlList = []
-        root = etree.XML(r.text.encode())
-        for link in root.xpath('./d:response/d:propstat/d:prop/d:getcontenttype[starts-with(.,"text/vcard")]/../../../d:href', namespaces={"d": "DAV:"}):
-            vcardUrlList.append(baseurl + link.text)
-
-        today = datetime.today()
-        birthday_names: List[str] = []
-        for vurl in vcardUrlList:
-            r = requests.request("GET", vurl, auth=auth)
-            vcard = vobject.readOne(r.text)
-            if 'bday' in vcard.contents.keys():
-                birthday = vcard.contents['bday'][0]
-                try:
-                    birthday_date = datetime.strptime(
-                        birthday.value, "%Y-%m-%d")
-                except ValueError:
-                    # necessary, because multipe formats are used...
-                    birthday_date = datetime.strptime(birthday.value, "%Y%m%d")
-
-                if (birthday_date.day == today.day) and (birthday_date.month == today.month):
-                    name = vcard.contents['fn'][0].value
-                    birthday_names.append(name)
-        return birthday_names
-    except Exception as e:
-        logger.critical(e)
-        return []
+    return []
